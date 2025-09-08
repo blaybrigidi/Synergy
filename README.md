@@ -1,5 +1,6 @@
 ## Synergy AI – Telegram MVP (VALUE Framework)
 Test it out here: https://t.me/synergyaihelpbot
+
 Minimal, no-database MVP using a Telegram bot + OpenAI. Guides users through the VALUE framework and returns tailored guidance at each stage.
 
 ### Features
@@ -7,7 +8,7 @@ Minimal, no-database MVP using a Telegram bot + OpenAI. Guides users through the
 - Multi-step VALUE flow (V, A, L, U, E)
 - OpenAI integration with retry logic
 - In-memory sessions per Telegram chat
-- Simple text-only UX (no buttons): clear instructions provided
+
 
 ### Prerequisites
 
