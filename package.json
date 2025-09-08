@@ -1,0 +1,16 @@
+{
+  "name": "synergy-ai-telegram-mvp",
+  "version": "0.1.0",
+  "description": "Synergy AI – Telegram MVP (VALUE framework, no DB)",
+  "type": "module",
+  "main": "telegram-polling-bot.js",
+  "scripts": {
+    "start": "node telegram-polling-bot.js",
+    "dev": "NODE_ENV=development node telegram-polling-bot.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "node-telegram-bot-api": "^0.66.0",
+    "openai": "^4.56.0"
+  }
+}
