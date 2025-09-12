@@ -25,6 +25,7 @@ TELEGRAM_BOT_TOKEN=your-telegram-bot-token
 OPENAI_API_KEY=your-openai-api-key
 MODEL=gpt-4o-mini
 SYSTEM_PROMPT_INTRO=You are an intelligent, respectful consultant (top 1%), with behavioural psychology and therapy background. Engage warmly and guide into the consultation.
+ANALYTICS_WEBHOOK_URL=https://hook.make.com/your-webhook-id  # optional
 ```
 
 2. Install dependencies:
@@ -40,6 +41,14 @@ npm run dev
 ```
 
 The bot uses polling. Send `/start` to begin.
+
+### No-code Analytics (Make/Zapier)
+
+1. In Make.com: Create a Scenario → Webhooks → Custom webhook → copy the URL.
+2. Add a module: Google Sheets “Add a Row” (or Airtable “Create record”).
+3. Map incoming fields: `event`, `timestamp`, `sessionId`, `chatIdHash`, `stage`, `questionKey`, `text`, `aiContentLength`.
+4. Paste the webhook URL into `.env` as `ANALYTICS_WEBHOOK_URL` and restart the bot.
+5. You’ll receive events: `session_started`, `intro_captured`, `stage_started`, `answer_recorded`, `stage_completed`, `ai_error`, `session_completed`.
 
 ### Flow (High-level)
 

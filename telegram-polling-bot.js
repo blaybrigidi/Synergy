@@ -4,6 +4,7 @@ dotenv.config();
 import TelegramBot from "node-telegram-bot-api";
 import { generateChatCompletion } from "./services/openaiService.js";
 import { STAGES, getNextStage, getStageQuestions, buildMessagesForStage } from "./services/promptService.js";
+import { postEvent, hashChatId } from "./services/analyticsService.js";
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) {
@@ -12,6 +13,9 @@ if (!token) {
 }
 
 const bot = new TelegramBot(token, { polling: true });
+
+// Minimal analytics mode: only emit session_started, stage_completed, ai_error, session_completed
+const ANALYTICS_MINIMAL = String(process.env.ANALYTICS_MINIMAL || "true").toLowerCase() === "true";
 
 // In-memory sessions: chatId -> session
 const sessions = new Map();
@@ -27,6 +31,13 @@ function initSession(chatId) {
     answers: { V: {}, A: {}, L: {}, U: {}, E: {} },
   };
   sessions.set(chatId, session);
+  // analytics: session started
+  postEvent("session_started", {
+    sessionId: String(chatId),
+    chatIdHash: hashChatId(chatId),
+    stage: "intro",
+    startedAt: new Date().toISOString(),
+  });
   return session;
 }
 
@@ -34,7 +45,7 @@ function getSession(chatId) {
   return sessions.get(chatId) || initSession(chatId);
 }
 
-function splitIntoChunks(text, maxLen = 3500) {
+function splitIntoChunks(text, maxLen = 2500) {
   if (!text || text.length <= maxLen) return [text];
   const chunks = [];
   let remaining = text;
@@ -91,6 +102,13 @@ async function handleIntro(session, text) {
   await send(session.chatId,
     `Great to meet you${session.name ? `, ${session.name}` : ""}. I’ll guide you through five sessions using the VALUE framework to align your gifts with real opportunities.\n\nWhen you’re ready, reply with 'yes' to begin Session 1: Vision Mapping.`
   );
+  // analytics: intro captured (always emit so name/location are recorded)
+  postEvent("intro_captured", {
+    sessionId: String(session.chatId),
+    chatIdHash: hashChatId(session.chatId),
+    name: session.name || null,
+    location: session.location || null,
+  });
   session.questionIndex = 1;
 }
 
@@ -98,6 +116,14 @@ async function beginStage(session, stage) {
   session.stage = stage;
   session.questionIndex = 0;
   const questions = getStageQuestions(stage);
+  // analytics: stage started (verbose only)
+  if (!ANALYTICS_MINIMAL) {
+    postEvent("stage_started", {
+      sessionId: String(session.chatId),
+      chatIdHash: hashChatId(session.chatId),
+      stage,
+    });
+  }
   if (stage === "L") {
     await send(session.chatId, "SESSION 3: LEVERAGE\nAnswer the 3 parts together in ONE message.");
   } else if (stage === "V") {
@@ -126,6 +152,17 @@ async function handleStageAnswer(session, text) {
 
   const current = questions[session.questionIndex];
   session.answers[stage][current.key] = text.trim();
+  // analytics: answer recorded (verbose only)
+  if (!ANALYTICS_MINIMAL) {
+    postEvent("answer_recorded", {
+      sessionId: String(session.chatId),
+      chatIdHash: hashChatId(session.chatId),
+      stage,
+      questionKey: current.key,
+      text: text.trim(),
+      questionIndex: session.questionIndex,
+    });
+  }
 
   const more = session.questionIndex < questions.length - 1;
   if (more) {
@@ -142,10 +179,24 @@ async function handleStageAnswer(session, text) {
     const result = await generateChatCompletion({ messages });
     const content = result.content || "(No content)";
     await send(session.chatId, content);
+    // analytics: stage completed
+    postEvent("stage_completed", {
+      sessionId: String(session.chatId),
+      chatIdHash: hashChatId(session.chatId),
+      stage,
+      aiContentLength: content.length,
+    });
   } catch (err) {
     console.error("OpenAI error:", err?.message || err);
     await send(session.chatId, "I ran into an error generating your guidance. Please say 'retry' to try again, or continue.");
     session.pendingRetry = { stage };
+    // analytics: ai error
+    postEvent("ai_error", {
+      sessionId: String(session.chatId),
+      chatIdHash: hashChatId(session.chatId),
+      stage,
+      error: String(err?.message || err),
+    });
     return;
   }
 
@@ -155,6 +206,14 @@ async function handleStageAnswer(session, text) {
     await send(session.chatId, "You’ve completed the full Synergy AI self-consultation. Take action on what you’ve learned. If you’d like a mentor or accountability, email Activationsthinktank@gmail.com. You are gifted. You are needed. The world is waiting.\n\nType 'restart' to begin again.");
     session.stage = "complete";
     session.questionIndex = -1;
+    // analytics: session completed
+    postEvent("session_completed", {
+      sessionId: String(session.chatId),
+      chatIdHash: hashChatId(session.chatId),
+      completedAt: new Date().toISOString(),
+      name: session.name || null,
+      location: session.location || null,
+    });
   } else {
     await beginStage(session, next);
   }
